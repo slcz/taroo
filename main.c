@@ -57,6 +57,8 @@ kalloc(uint32_t size, uint32_t align)
 }
 
 void loadidt(void *);
+void cominit(void);
+void reboot(void);
 
 void exc_div0(void);
 void exc_dbg(void);
@@ -94,14 +96,22 @@ int a = 0, b = 0;
 int
 init64(uint32_t *mem)
 {
-	int i;
 	intptr_t addr;
+	uint32_t *memmap = (uint32_t *)0x8000;
+	int i;
+
+	memset(idt, 0, sizeof(idt));
+
+	cominit();
+	printf("HELLO WORLD\n");
+	for (;memmap[5]; memmap += 6) {
+		printf("%x %x | %x %x | %x %x\n", memmap[0], memmap[1], memmap[2], memmap[3], memmap[4], memmap[5]);
+	}
 
 	avail = (intptr_t)_end;
 	avail += KSTACK_SIZE;
 	pidt.limit  = sizeof(idt) - 1;
 	pidt.offset = (uint64_t)idt;
-	memset(idt, 0, sizeof(idt));
 	for (i = 0; i < 32; i ++) {
 		addr = (intptr_t)(except[i]);
 		idt[i].offlo = (uint16_t)((addr) & 0xFFFF);
@@ -113,7 +123,6 @@ init64(uint32_t *mem)
 		idt[i].ist   = 0;
 	}
 	loadidt(&pidt);
-	printf("HELLO WORLD\n");
 	a = a / b;
 
 	return (0);
@@ -154,4 +163,5 @@ intr(struct frame *frame)
 	printf("rcs=%lx\n", frame->rcs);
 	printf("rflag=%lx\n", frame->rflag);
 	printf("rss=%lx\n", frame->rss);
+	reboot();
 }

@@ -33,7 +33,6 @@ cksum:
 	.long	0
 drv:
 	.long	0
-	ljmp	$0,		$0x7c00
 1:
 	/* Disable Interrupt */
 	cli
@@ -58,29 +57,21 @@ drv:
 	orb	$2,		%al
 	outb	%al,		$0x92
 
-#ifdef DEBUG_COM
-	/* Init COM port to 9600 */
-	movw	$0x3f8,		%dx
-	/* enable DLAB */
-	addb	$3,		%dl
-	movb	$0x80,		%al
-	outb	%al,		%dx
-	/* divisor lo */
-	subb	$3,		%dl
-	movb	$12,		%al
-	outb	%al,		%dx
-	/* divisor hi */
-	xorb	%al,		%al
-	addb	$1,		%dl
-	outb	%al,		%dx
-	/* 8b, np, 1s */
-	addb	$2,		%dl
-	movb	$3,		%al
-	outb	%al,		%dx
-#endif
+	addl	%ebp,		gdtboot+2(%ebp)
+
+	movl	$_start,	%edi
+	/* Read Disk */
+	xorl	%ecx,		%ecx
+1:
+	movb	$0x42,		%ah	/* Extended Read */
+	movb	drv(%ebp),	%dl	/* Drive         */
+	lea	dap(%ebp),	%esi
+	pushl	%ebp
+	int	$0x13
+	popl	%ebp
+	addw	$0x40,		lba(%ebp)
 
 	/* Unreal Mode */
-	addl	%ebp,		gdtboot+2(%ebp)
 	lgdt	%cs:gdtboot(%ebp)
 	movl	%cr0,		%eax
 	/* Protect Enable */
@@ -100,17 +91,6 @@ drv:
 	movw	%ax,		%ds
 	movw	%ax,		%es
 
-	movl	$_start,	%edi
-	/* Read Disk */
-	xorl	%ecx,		%ecx
-1:
-	movb	$0x42,		%ah	/* Extended Read */
-	movb	drv(%ebp),	%dl	/* Drive         */
-	lea	dap(%ebp),	%esi
-	pushl	%ebp
-	int	$0x13
-	popl	%ebp
-	addw	$0x40,		lba(%ebp)
 	movl	$DATA_START,	%esi
 
 2:	/* In unreal mode, string move does not seem to work */
@@ -128,6 +108,7 @@ drv:
 	jl	1b
 	cmpl	$0,		%ecx
 	jne	die
+
 	/* E820 stuff */
 	xorl	%ebx,		%ebx
 	movl	$0x534d4150,	%edx
@@ -149,17 +130,14 @@ drv:
 	jne	1b
 1:
 	movw	$0,		20(%di)
-#ifdef DEBUG_COM
-	DBG($'L')
-#endif
+
 	/*
 	 * Switch to long mode.
-	 * Use 4 * 2MB page to cover initial kernel space.
-	 * clear 12KB page table buffer.
+	 * clear 16KB page table buffer.
 	 */
 	movw	$PT_START,	%di
 	pushw	%di
-	movl	$0x3000,	%ecx
+	movl	$0x4000,	%ecx
 	xorb	%al,		%al
 	cld
 	rep	stosb
@@ -171,15 +149,18 @@ drv:
 	addw	$0x1000,	%si
 	lea	0x1003(%si),	%eax
 	movl	%eax,		(%si)
-
-	/* PT = Global, 2MB * 4 size, RW, P */
-	movl	$0x183,		%eax
 	addw	$0x1000,	%si
-	lea	32(%si),	%di
+	lea	0x1003(%si),	%eax
+	movl	%eax,		(%si)
+
+	/* PT = Global, 4KB*2048 size, RW, P */
+	movl	$0x103,		%eax
+	addw	$0x1000,	%si
+	lea	0x1000(%si),	%di
 1:
 	movl	%eax,		(%si)
 	addw	$8,		%si
-	addl	$0x200000,	%eax
+	addl	$0x1000,	%eax
 	cmpw	%di,		%si
 	jne	1b
 
@@ -203,6 +184,7 @@ drv:
 	orl	$0x80000001,	%eax
 	movl	%eax,		%cr0
 
+	lgdt	%cs:gdtboot(%ebp)
 	ljmpl	$8,		$longmode
 die:
 	jmp	die
@@ -358,3 +340,42 @@ exc_common:
 	callq	intr
 1:
 	jmp	1b
+
+.globl reboot
+reboot:
+	cli
+1:
+	inb	$0x64,		%al
+	testb	$1,		%al
+	je	2f
+	inb	$0x60	/* consume kbd buffer */
+2:
+	testb	$2,		%al
+	jne	1b
+	movb	$0xfe,		%al	/* reset command */
+	outb	%al,		$0x64
+1:
+	hlt
+	jmp	1b
+
+.globl cominit
+cominit:
+	/* Init COM port to 115200 */
+	movw	$0x3f8,		%dx
+	/* enable DLAB */
+	addb	$3,		%dl
+	movb	$0x80,		%al
+	outb	%al,		%dx
+	/* divisor lo */
+	subb	$3,		%dl
+	movb	$1,		%al
+	outb	%al,		%dx
+	/* divisor hi */
+	xorb	%al,		%al
+	addb	$1,		%dl
+	outb	%al,		%dx
+	/* 8b, np, 1s */
+	addb	$2,		%dl
+	movb	$3,		%al
+	outb	%al,		%dx
+	retq

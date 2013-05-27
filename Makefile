@@ -13,6 +13,8 @@ CFLAGS=-c -fno-builtin -g -O2 -I. -pipe -Wall -Werror -nostdinc
 
 LDFLAGS=-nostdlib -Wl,-e,_start -Wl,-T./taroo.lds -Wl,--build-id=none -Wl,-Ttext=0x100000
 
+all: taroo.vdi taroo.img
+
 taroo.vdi: taroo.bin
 	@dd if=$^ of=$^.dsk ibs=1G conv=sync,sparse
 	@rm -f $@
@@ -20,6 +22,9 @@ taroo.vdi: taroo.bin
 
 imghdr: imghdr.c
 	$(HOSTCC)	-O2 $^ -o $@
+
+taroo.img: taroo.bin
+	@dd if=taroo.bin of=$@ bs=8M count=1 conv=sync
 
 taroo.bin: taroo.elf imghdr
 	@$(OBJCOPY) -O binary taroo.elf $@
