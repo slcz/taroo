@@ -4,8 +4,8 @@
 .code16
 
 #define DATA_START	0x8000
-#define DATA_END	0xC000
-#define PT_START	DATA_END
+#define DATA_END	0x8200
+#define PT_START	0xC000
 #define IMG_MAGIC	0x124620AB
 
 #define PRTCH				\
@@ -60,16 +60,18 @@ drv:
 	addl	%ebp,		gdtboot+2(%ebp)
 
 	movl	$_start,	%edi
+	xor	%ecx,		%ecx
+
 	/* Read Disk */
-	xorl	%ecx,		%ecx
-1:
+3:
 	movb	$0x42,		%ah	/* Extended Read */
 	movb	drv(%ebp),	%dl	/* Drive         */
 	lea	dap(%ebp),	%esi
 	pushl	%ebp
 	int	$0x13
 	popl	%ebp
-	addw	$0x40,		lba(%ebp)
+	/* addw	$0x1,		lba(%ebp) */
+	incw	lba(%ebp)
 
 	/* Unreal Mode */
 	lgdt	%cs:gdtboot(%ebp)
@@ -105,7 +107,7 @@ drv:
 	movl	$_start,	%eax
 	addl	size(%ebp),	%eax
 	cmpl	%eax,		%edi
-	jl	1b
+	jne	3b
 	cmpl	$0,		%ecx
 	jne	die
 
@@ -192,7 +194,7 @@ die:
 dap:
 	.byte	0x10	/* size */
 	.byte	0
-	.word	0x40	/* 64 sectors a time   */
+	.word	1	/* 1 sector a time   */
 	.word	DATA_START
 	.word	0
 lba:	.long	0, 0
