@@ -146,18 +146,15 @@ drv:
 
 	/* P4 PDP PDT */
 	popw	%si
+	movw	$3,		%cx
+1:
 	lea	0x1003(%si),	%eax
 	movl	%eax,		(%si)
 	addw	$0x1000,	%si
-	lea	0x1003(%si),	%eax
-	movl	%eax,		(%si)
-	addw	$0x1000,	%si
-	lea	0x1003(%si),	%eax
-	movl	%eax,		(%si)
+	loop	1b
 
 	/* PT = Global, 4KB*2048 size, RW, P */
 	movl	$0x103,		%eax
-	addw	$0x1000,	%si
 	lea	0x1000(%si),	%di
 1:
 	movl	%eax,		(%si)
